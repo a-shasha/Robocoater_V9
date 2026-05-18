@@ -1,0 +1,93 @@
+# Controlled baseline allowlist. Keep the first commit scoped to the requested monorepo folders.
+*
+!.gitignore
+!README.md
+!antisolvent_v9/
+!antisolvent_v9/**
+!gas_quench_v9/
+!gas_quench_v9/**
+!odrive-code/
+!odrive-code/**
+!Gas-Quenching/
+!Gas-Quenching/**
+!docs/
+!docs/**
+!validation/
+!validation/**
+!training/
+!training/**
+!shared_notes/
+!shared_notes/**
+
+# Python caches and build products.
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
+
+# Local environments and machine-specific settings.
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+ENV/
+.vscode/
+.idea/
+**/.git/
+**/.idea/
+
+# Temporary files and logs.
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.pid
+RoboCoater_session_report.txt
+capture.txt
+Console_Log.txt
+
+# Generated campaign and analysis outputs.
+*_outputs/
+Holmes_Campaign*/
+Campaign_V9_*.json
+Campaign_V9_*_analyzed.json
+Campaign_V9_*_Analyzed.jpeg
+Campaign_V9_*_film_*.jpg
+Campaign_Experiments.json
+MasterUtility.json
+TimePoints_MasterUtility.json
+NormParameters_MasterUtility.json
+Observations_MasterUtility.json
+Valid_MasterUtility.json
+Operation_Event_Log.csv
+Snapshots/
+Gas-Quenching/NOYITO-USB-Relay-Module-GUI/NOYITO-Provided-Documentation-Software-Drivers/USB Relay External Use Development Library/
+
+# Existing imported workspaces and exploratory artifacts outside the controlled baseline.
+Automated-Spin-Coating/
+holmes/
+holmes-server/
+Json files from lab/
+visual output test/
+baseline_overlay_outputs/
+reflectance_baseline_outputs/
+solvent_buildup_outputs/
+literature/
+operation report/
+plot1_full_campaign.png
+plot2_overlay_by_sample.png
+PLandABSplotcode.ipynb
+LHStest.ipynb
+preprocess_and_plot_solvent_buildup.py
+extract_and_plot_baseline_overlays.py
+.github/agents/
