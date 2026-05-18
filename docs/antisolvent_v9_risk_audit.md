@@ -40,9 +40,9 @@ Top 5 risks:
 | AS-R020 | JSON/data integrity | Raw JSON, analyzed JSON, master JSONs, and campaign logs are written directly with `open(..., 'w')` and `json.dump()`, not via temp-file plus atomic replace. | High | `Save_Data.py::save_Data`; `Analysis_SD.py::_update_json_file`; `Save_Campaign_Log.py::save_experiment_log` | None directly, but campaign may continue based on damaged state after restart. | Power loss/interruption can leave partial/truncated JSON. | Later patch should write to `*.tmp`, flush/fsync, then atomic replace. |
 | AS-R021 | JSON/data integrity | If `Campaign_Experiments.json` cannot be read, `_read_campaign_dict()` returns `{}` and `save_experiment_log()` also starts from `{}`. This can mask corruption and overwrite campaign history. | High | `run_campaign.py::_read_campaign_dict`; `Save_Campaign_Log.py::save_experiment_log` | Campaign may repeat old actions or lose progression context. | HOLMES training set can be reset or corrupted silently. | Later patch should quarantine unreadable campaign logs and require human decision instead of continuing from empty state. |
 | AS-R022 | JSON/data integrity | Existing output names can be overwritten if resume count is wrong, the campaign log is reset, or a run is repeated with the same `fileName`. Classifier also removes existing classified image destination before rename. | Medium | `run_campaign.py::main`; `Analysis_2/Film_Classification_2.py::classify_Film` | Physical run evidence can be disconnected from prior outputs. | Old raw/analyzed JSON or image outputs can be lost. | Later patch should refuse to run if target output files already exist unless operator explicitly selects a recovery mode. |
-| AS-R023 | Operator workflow and Kathy training | Manual pause occurs every three completed runs with a generic `Press Enter to continue` prompt. It does not show a required checklist or current hardware state. | Medium | `run_campaign.py::_pause_if_needed`; `training/operator_checklist.md` | Operator may resume after an unresolved issue. | Campaign metadata does not record what was checked during the pause. | Add a training checklist that Kathy must complete verbally or in notes before pressing Enter. |
-| AS-R024 | Operator workflow and Kathy training | Printed errors can be easy to miss during long runs. Camera failures and analysis exceptions may print but not stop campaign progression. | High | `Dual_Send_Camera.py::cap_Picture`; `Analysis_SD.py::analyze_Data` | Operator may leave the system running after required data capture failed. | Bad/missing image or invalid analysis can still enter campaign artifacts. | Train Kathy that any camera, analysis, spectrometer, or pump warning is a stop-and-preserve event until reviewed. |
-| AS-R025 | Operator workflow and Kathy training | The distinction between requested drip time, software command time, and physical drip time is subtle. | High | `run_campaign.py`; `Perovskite_Recipe_SD.py`; `Dual_Send_Commands.py` | Operator may incorrectly evaluate whether a run was on time. | HC correlation and campaign notes can be mislabeled. | Training should include a timing reconstruction exercise using `Operation_Event_Log.csv` and HC sensor CSV. |
+| AS-R023 | Operator workflow and handoff readiness | Manual pause occurs every three completed runs with a generic `Press Enter to continue` prompt. It does not show a required checklist or current hardware state. | Medium | `run_campaign.py::_pause_if_needed`; `training/operator_checklist.md` | Operator may resume after an unresolved issue. | Campaign metadata does not record what was checked during the pause. | Add a training checklist that the new operator must complete verbally or in notes before pressing Enter. |
+| AS-R024 | Operator workflow and handoff readiness | Printed errors can be easy to miss during long runs. Camera failures and analysis exceptions may print but not stop campaign progression. | High | `Dual_Send_Camera.py::cap_Picture`; `Analysis_SD.py::analyze_Data` | Operator may leave the system running after required data capture failed. | Bad/missing image or invalid analysis can still enter campaign artifacts. | Train the operator that any camera, analysis, spectrometer, or pump warning is a stop-and-preserve event until reviewed. |
+| AS-R025 | Operator workflow and handoff readiness | The distinction between requested drip time, software command time, and physical drip time is subtle. | High | `run_campaign.py`; `Perovskite_Recipe_SD.py`; `Dual_Send_Commands.py` | Operator may incorrectly evaluate whether a run was on time. | HC correlation and campaign notes can be mislabeled. | Training should include a timing reconstruction exercise using `Operation_Event_Log.csv` and HC sensor CSV. |
 
 ## Timing Trace For Antisolvent Drip
 
@@ -222,15 +222,15 @@ Do not implement these in this audit branch without explicit approval:
 11. HC alignment validation: synchronize clocks, generate a known event, and verify nearest-neighbor matching tolerance.
 12. Operator pause validation: rehearse every-three-run pause with checklist completion and explicit continue/stop decision.
 
-## Kathy Training Implications
+## Operator Training Implications
 
-Kathy should be trained to distinguish:
+The new operator should be trained to distinguish:
 
 - requested drip time: the action chosen by LHS/HOLMES
 - software command time: when the pump `RUN` command was issued
 - physical drip time: when fluid actually leaves the nozzle and interacts with the film
 
-Kathy should not treat these as equivalent until validation data prove the offset is stable.
+The operator should not treat these as equivalent until validation data prove the offset is stable.
 
 Training should emphasize:
 
