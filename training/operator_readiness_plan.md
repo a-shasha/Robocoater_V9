@@ -1,4 +1,4 @@
-# Kathy Training Plan
+# Operator Readiness Plan
 
 ## Goals
 
