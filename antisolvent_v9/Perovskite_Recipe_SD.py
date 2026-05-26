@@ -124,6 +124,11 @@ def run_Perovskite_Recipe(
         # Wait for perovskite dispense to finish first to avoid concurrent pump serial traffic.
         if quenchOrAntisolvent == "Antisolvent" and int(dripVol) != 0:
             anti_prep_vol = 50.0  # 25 uL historical prime + 15 uL moved from late pre-drip path
+            anti_prep_details = (
+                f"pump_number={antiPump}, prep_volume_ul={anti_prep_vol}, "
+                f"requested_drip_time_s={dripTime}, requested_volume_ul={dripVol}, "
+                f"requested_rate_ml_min={dripRate}, note=prep_not_commanded_substrate_drip"
+            )
 
             def _prepare_antisolvent(perov_thread, perov_withdraw_thread):
                 if perov_thread is not None:
@@ -136,6 +141,7 @@ def run_Perovskite_Recipe(
                 target=_prepare_antisolvent,
                 args=(tDispense, tPerovPostWithdraw),
             )
+            _log_event("antisolvent_prep_thread_scheduled", details=anti_prep_details)
             tAntiPrep.start()
 
         # 3) Wait spread time for it to spread out
@@ -179,32 +185,77 @@ def run_Perovskite_Recipe(
             print(f"[{exp_label}] Antisolvent Drip Running")
             _log_event(
                 "requested_antisolvent_drip_time",
-                details=f"requested_drip_time_s={dripTime}, requested_volume_ul={dripVol}, mode={quenchOrAntisolvent}",
+                details=(
+                    f"requested_drip_time_s={dripTime}, requested_volume_ul={dripVol}, "
+                    f"requested_rate_ml_min={dripRate}, mode={quenchOrAntisolvent}"
+                ),
             )
             if tAntiPrep is not None:
+                _log_event(
+                    "antisolvent_prep_join_start",
+                    details=(
+                        f"pump_number={antiPump}, prep_volume_ul=50.0, requested_drip_time_s={dripTime}, "
+                        f"requested_volume_ul={dripVol}, requested_rate_ml_min={dripRate}, "
+                        f"note=prep_not_commanded_substrate_drip"
+                    ),
+                )
                 tAntiPrep.join()
+                _log_event(
+                    "antisolvent_prep_join_end",
+                    details=(
+                        f"pump_number={antiPump}, prep_volume_ul=50.0, requested_drip_time_s={dripTime}, "
+                        f"requested_volume_ul={dripVol}, requested_rate_ml_min={dripRate}, "
+                        f"note=prep_not_commanded_substrate_drip"
+                    ),
+                )
             pre_drip_wait_s = max(0, dripTime - antisolventDripEdgeCompensationS)
             _log_event(
                 "antisolvent_pre_drip_wait_start",
                 details=(
-                    f"wait_duration_s={pre_drip_wait_s:.3f}, "
-                    f"drip_edge_compensation_s={antisolventDripEdgeCompensationS:.3f}"
+                    f"requested_drip_time_s={dripTime}, requested_volume_ul={dripVol}, "
+                    f"requested_rate_ml_min={dripRate}, "
+                    f"drip_edge_compensation_s={antisolventDripEdgeCompensationS:.3f}, "
+                    f"computed_pre_drip_wait_s={pre_drip_wait_s:.3f}, "
+                    f"wait_duration_s={pre_drip_wait_s:.3f}"
                 ),
             )
             time.sleep(pre_drip_wait_s)
             _log_event(
                 "antisolvent_pre_drip_wait_end",
                 details=(
-                    f"wait_duration_s={pre_drip_wait_s:.3f}, "
-                    f"drip_edge_compensation_s={antisolventDripEdgeCompensationS:.3f}"
+                    f"requested_drip_time_s={dripTime}, requested_volume_ul={dripVol}, "
+                    f"requested_rate_ml_min={dripRate}, "
+                    f"drip_edge_compensation_s={antisolventDripEdgeCompensationS:.3f}, "
+                    f"computed_pre_drip_wait_s={pre_drip_wait_s:.3f}, "
+                    f"wait_duration_s={pre_drip_wait_s:.3f}"
                 ),
             )
             tAntiDispense = threading.Thread(target=DSC.dispense, args=(antiPump, dripVol, timeStart, 1))
             _log_event(
                 "antisolvent_dispense_thread_scheduled",
-                details=f"pump_number={antiPump}, requested_volume_ul={dripVol}, retract_delay_s=1",
+                details=(
+                    f"pump_number={antiPump}, requested_drip_time_s={dripTime}, "
+                    f"requested_volume_ul={dripVol}, requested_rate_ml_min={dripRate}, "
+                    f"retract_delay_s=1"
+                ),
             )
             tAntiDispense.start()
+            _log_event(
+                "antisolvent_dispense_thread_start_call_returned",
+                details=(
+                    f"pump_number={antiPump}, requested_drip_time_s={dripTime}, "
+                    f"requested_volume_ul={dripVol}, requested_rate_ml_min={dripRate}, "
+                    f"thread_start_call_returned=True, note=logged_after_start_call_to_avoid_pre_start_delay"
+                ),
+            )
+            _log_event(
+                "antisolvent_dispense_thread_started",
+                details=(
+                    f"pump_number={antiPump}, requested_drip_time_s={dripTime}, "
+                    f"requested_volume_ul={dripVol}, requested_rate_ml_min={dripRate}, "
+                    f"thread_is_alive={tAntiDispense.is_alive()}"
+                ),
+            )
             remainingSpinTime = dripTime
 
         # 7) Keep spinning until total runTime is reached

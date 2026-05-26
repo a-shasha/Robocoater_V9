@@ -519,6 +519,28 @@ def _decode_pump_output_brief(output):
     return str(output).strip()
 
 
+def _pump_command_response_details(
+    direction_command,
+    direction_response,
+    volume_unit_command,
+    volume_unit_response,
+    volume_command,
+    volume_response,
+    run_command,
+    run_response,
+):
+    return (
+        f"direction_command='{direction_command}', "
+        f"direction_response='{_decode_pump_output_brief(direction_response)}', "
+        f"volume_unit_command='{volume_unit_command}', "
+        f"volume_unit_response='{_decode_pump_output_brief(volume_unit_response)}', "
+        f"volume_command='{volume_command}', "
+        f"volume_response='{_decode_pump_output_brief(volume_response)}', "
+        f"run_command='{run_command}', "
+        f"run_response='{_decode_pump_output_brief(run_response)}'"
+    )
+
+
 def _send_pump_command_locked(cmd_no_cr):
     """Send one raw pump command and return one raw response line.
 
@@ -913,22 +935,29 @@ def dispense(sn, volume, timeStart, delay):
     with _pump_command_lock:
         # set direction to infuse to dispense
         directionINF = '{number} DIR INF'.format(number=sn)
-        sendCMD(directionINF)
+        direction_response = sendCMD(directionINF)
 
         # check to make sure its <1000ul. if not, divides by 1000 and sets units to ml, then checks number meets floats rules
         # then set the amount to dispense
-        volC = checkVolUnit(sn, volume)
+        volC, volume_unit_command, volume_unit_response = checkVolUnit(sn, volume, return_command_details=True)
         volF = checkPumpFloat(volC)
         vol = '{number} VOL {float}'.format(number=sn, float=volF)
-        sendCMD(vol)
+        volume_response = sendCMD(vol)
 
         # run => start pumping; can repeat run command to perform the same task. rate, vol, diameter ect are static
         run = '{number} RUN'.format(number=sn)
-        sendCMD(run)
+        run_response = sendCMD(run)
 
     log_operation_event(
         event_name=f"{_pump_role_name(sn)}_dispense_command_sent",
         details=f"pump_number={sn}, run_command='{run}', requested_volume_ul={volume}, retract_delay_s={delay}",
+    )
+    log_operation_event(
+        event_name=f"{_pump_role_name(sn)}_dispense_command_responses",
+        details=(
+            f"pump_number={sn}, requested_volume_ul={volume}, retract_delay_s={delay}, "
+            f"{_pump_command_response_details(directionINF, direction_response, volume_unit_command, volume_unit_response, vol, volume_response, run, run_response)}"
+        ),
     )
 
     sequenceName.append('Start pump')  # record time of syringe pump starting
@@ -990,14 +1019,14 @@ def dispense_Only(sn, volume):
     with _pump_command_lock:
         # set direction to infuse to dispense
         directionINF = '{number} DIR INF'.format(number=sn)
-        sendCMD(directionINF)
+        direction_response = sendCMD(directionINF)
 
         # check to make sure its <1000ul. if not, divides by 1000 and sets units to ml, then checks number meets floats rules
         # then set the amount to dispense
-        volC = checkVolUnit(sn, volume)
+        volC, volume_unit_command, volume_unit_response = checkVolUnit(sn, volume, return_command_details=True)
         volF = checkPumpFloat(volC)
         vol = '{number} VOL {float}'.format(number=sn, float=volF)
-        sendCMD(vol)
+        volume_response = sendCMD(vol)
 
         # run => start pumping; can repeat run command to perform the same task. rate, vol, diameter ect are static
         run = '{number} RUN'.format(number=sn)
@@ -1005,7 +1034,14 @@ def dispense_Only(sn, volume):
             event_name=command_event,
             details=f"pump_number={sn}, run_command='{run}', requested_volume_ul={volume}",
         )
-        sendCMD(run)
+        run_response = sendCMD(run)
+        log_operation_event(
+            event_name=f"{pump_role}_prep_command_responses" if command_event.endswith("_prep_command_sent") else f"{pump_role}_dispense_command_responses",
+            details=(
+                f"pump_number={sn}, requested_volume_ul={volume}, "
+                f"{_pump_command_response_details(directionINF, direction_response, volume_unit_command, volume_unit_response, vol, volume_response, run, run_response)}"
+            ),
+        )
 
         # loops until pumping is stopped, then retracts arm
         # real time query of volume dispensed infused (I) or withdrawn (W) and volume units
@@ -1043,19 +1079,26 @@ def withdraw_Only(sn, volume):
     with _pump_command_lock:
         # set direction to withdraw
         directionWDR = '{number} DIR WDR'.format(number=sn)
-        sendCMD(directionWDR)
+        direction_response = sendCMD(directionWDR)
 
-        volC = checkVolUnit(sn, volume)
+        volC, volume_unit_command, volume_unit_response = checkVolUnit(sn, volume, return_command_details=True)
         volF = checkPumpFloat(volC)
         vol = '{number} VOL {float}'.format(number=sn, float=volF)
-        sendCMD(vol)
+        volume_response = sendCMD(vol)
 
         run = '{number} RUN'.format(number=sn)
         log_operation_event(
             event_name=command_event,
             details=f"pump_number={sn}, run_command='{run}', requested_volume_ul={volume}",
         )
-        sendCMD(run)
+        run_response = sendCMD(run)
+        log_operation_event(
+            event_name=f"{pump_role}_withdraw_command_responses",
+            details=(
+                f"pump_number={sn}, requested_volume_ul={volume}, "
+                f"{_pump_command_response_details(directionWDR, direction_response, volume_unit_command, volume_unit_response, vol, volume_response, run, run_response)}"
+            ),
+        )
 
         log_operation_event(
             event_name=wait_start_event,
@@ -1189,15 +1232,19 @@ def prime(sn, volume):
 
 # check to make sure its <1000ul, if not divides by 1000 and sets units to ml
 # can't be outside of class due to using self.sendCMD()
-def checkVolUnit(sn, volume):
+def checkVolUnit(sn, volume, return_command_details=False):
     if volume >= 1000:
         vol = volume / 1000
         volUnitML = '{number} VOL ML'.format(number=sn)  # sets volume to ML
-        sendCMD(volUnitML)
+        response = sendCMD(volUnitML)
+        if return_command_details:
+            return vol, volUnitML, response
         return vol
     else:
         volUnitUL = '{number} VOL UL'.format(number=sn)  # sets volume to UL
-        sendCMD(volUnitUL)
+        response = sendCMD(volUnitUL)
+        if return_command_details:
+            return volume, volUnitUL, response
         return volume
 
 
